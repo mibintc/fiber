@@ -382,7 +382,7 @@ scheduler::attach_main_context( context * ctx) noexcept {
     // should not be in worker-queue
     main_ctx_ = ctx;
 #if ! defined(BOOST_FIBERS_NO_ATOMICS)
-    main_ctx_->scheduler_.store( this, std::memory_order_relaxed);
+    main_ctx_->scheduler_.store( this, std::memory_order_seq_cst);
 #else
     main_ctx_->scheduler_ = this;
 #endif
@@ -404,7 +404,7 @@ scheduler::attach_dispatcher_context( intrusive_ptr< context > ctx) noexcept {
     // the dispatcher-context is resumed and
     // scheduler::dispatch() is executed
 #if ! defined(BOOST_FIBERS_NO_ATOMICS)
-    dispatcher_ctx_->scheduler_.store( this, std::memory_order_relaxed);
+    dispatcher_ctx_->scheduler_.store( this, std::memory_order_seq_cst);
 #else
     dispatcher_ctx_->scheduler_ = this;
 #endif
@@ -421,7 +421,7 @@ scheduler::attach_worker_context( context * ctx) noexcept {
     BOOST_ASSERT( ! ctx->worker_is_linked() );
 #if ! defined(BOOST_FIBERS_NO_ATOMICS)
     // FIXME : must scheduler be a std::atomic<> ?
-    ctx->scheduler_.store( this, std::memory_order_release);
+    ctx->scheduler_.store( this, std::memory_order_seq_cst);
 #else
     BOOST_ASSERT( nullptr == ctx->scheduler_);
     ctx->scheduler_ = this;
@@ -441,7 +441,7 @@ scheduler::detach_worker_context( context * ctx) noexcept {
     ctx->worker_unlink();
 #if ! defined(BOOST_FIBERS_NO_ATOMICS)
     // FIXME : must scheduler be a std::atomic<> ?
-    ctx->scheduler_.store( nullptr, std::memory_order_release);
+    ctx->scheduler_.store( nullptr, std::memory_order_seq_cst);
 #else
     ctx->scheduler_ = nullptr;
 #endif

@@ -63,14 +63,14 @@ private:
     char                                            pad_[cacheline_length];
 
     bool is_empty_() {
-        return nullptr == slot_.load( std::memory_order_acquire);
+        return nullptr == slot_.load( std::memory_order_seq_cst);
     }
 
     bool try_push_( slot * own_slot) {
         for (;;) {
-            slot * s = slot_.load( std::memory_order_acquire);
+            slot * s = slot_.load( std::memory_order_seq_cst);
             if ( nullptr == s) {
-                if ( ! slot_.compare_exchange_strong( s, own_slot, std::memory_order_acq_rel) ) {
+                if ( ! slot_.compare_exchange_strong( s, own_slot, std::memory_order_seq_cst) ) {
                     continue;
                 }
                 return true;
@@ -83,9 +83,9 @@ private:
     slot * try_pop_() {
         slot * nil_slot = nullptr;
         for (;;) {
-            slot * s = slot_.load( std::memory_order_acquire);
+            slot * s = slot_.load( std::memory_order_seq_cst);
             if ( nullptr != s) {
-                if ( ! slot_.compare_exchange_strong( s, nil_slot, std::memory_order_acq_rel) ) {
+                if ( ! slot_.compare_exchange_strong( s, nil_slot, std::memory_order_seq_cst) ) {
                     continue;}
             }
             return s;
@@ -110,13 +110,13 @@ public:
     unbuffered_channel & operator=( unbuffered_channel const&) = delete;
 
     bool is_closed() const noexcept {
-        return closed_.load( std::memory_order_acquire);
+        return closed_.load( std::memory_order_seq_cst);
     }
 
     void close() noexcept {
         context * active_ctx = context::active();
         detail::spinlock_lock lk{ splk_ };
-        closed_.store( true, std::memory_order_release);
+        closed_.store( true, std::memory_order_seq_cst);
         // notify all waiting producers
         while ( ! waiting_producers_.empty() ) {
             context * producer_ctx = & waiting_producers_.front();
@@ -237,7 +237,7 @@ public:
                 if ( ! active_ctx->wait_until( timeout_time, lk) ) {
                     // clear slot
                     slot * nil_slot = nullptr, * own_slot = & s;
-                    slot_.compare_exchange_strong( own_slot, nil_slot, std::memory_order_acq_rel);
+                    slot_.compare_exchange_strong( own_slot, nil_slot, std::memory_order_seq_cst);
                     // resumed, value has not been consumed
                     return channel_op_status::timeout;
                 }
@@ -287,7 +287,7 @@ public:
                 if ( ! active_ctx->wait_until( timeout_time, lk) ) {
                     // clear slot
                     slot * nil_slot = nullptr, * own_slot = & s;
-                    slot_.compare_exchange_strong( own_slot, nil_slot, std::memory_order_acq_rel);
+                    slot_.compare_exchange_strong( own_slot, nil_slot, std::memory_order_seq_cst);
                     // resumed, value has not been consumed
                     return channel_op_status::timeout;
                 }

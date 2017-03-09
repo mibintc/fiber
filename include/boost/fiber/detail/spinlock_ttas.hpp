@@ -60,7 +60,7 @@ public:
             // sucessive acccess to 'state_' -> cache hit
             // if 'state_' was released by other fiber
             // cached 'state_' is invalidated -> cache miss
-            while ( spinlock_status::locked == state_.load( std::memory_order_relaxed) ) {
+            while ( spinlock_status::locked == state_.load( std::memory_order_seq_cst) ) {
 #if !defined(BOOST_FIBERS_SPIN_SINGLE_CORE)
                 if ( BOOST_FIBERS_SPIN_MAX_TESTS > tests) {
                     ++tests;
@@ -90,7 +90,7 @@ public:
             }
             // test-and-set shared variable 'status_'
             // everytime 'status_' is signaled over the bus, even if the test failes
-            if ( spinlock_status::locked == state_.exchange( spinlock_status::locked, std::memory_order_acquire) ) {
+            if ( spinlock_status::locked == state_.exchange( spinlock_status::locked, std::memory_order_seq_cst) ) {
                 // spinlock now contended
                 // utilize 'Binary Exponential Backoff' algorithm
                 // linear_congruential_engine is a random number engine based on Linear congruential generator (LCG)
@@ -111,7 +111,7 @@ public:
     }
 
     void unlock() noexcept {
-        state_.store( spinlock_status::unlocked, std::memory_order_release);
+        state_.store( spinlock_status::unlocked, std::memory_order_seq_cst);
     }
 };
 

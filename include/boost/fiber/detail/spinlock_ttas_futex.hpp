@@ -55,7 +55,7 @@ public:
             // sucessive acccess to 'value_' -> cache hit
             // if 'value_' was released by other fiber
             // cached 'value_' is invalidated -> cache miss
-            if ( 0 != ( expected = value_.load( std::memory_order_relaxed) ) ) {
+            if ( 0 != ( expected = value_.load( std::memory_order_seq_cst) ) ) {
                 ++tests;
 #if !defined(BOOST_FIBERS_SPIN_SINGLE_CORE)
                 // give CPU a hint that this thread is in a "spin-wait" loop
@@ -70,7 +70,7 @@ public:
                 // instead of constant checking, a thread only checks if no other useful work is pending
                 std::this_thread::yield();
 #endif
-            } else if ( ! value_.compare_exchange_strong( expected, 1, std::memory_order_acquire, std::memory_order_release) ) {
+            } else if ( ! value_.compare_exchange_strong( expected, 1, std::memory_order_seq_cst, std::memory_order_seq_cst) ) {
                 // spinlock now contended
                 // utilize 'Binary Exponential Backoff' algorithm
                 // linear_congruential_engine is a random number engine based on Linear congruential generator (LCG)
@@ -91,17 +91,17 @@ public:
         // failure, lock not acquired
         // pause via futex
         if ( 2 != expected) {
-            expected = value_.exchange( 2, std::memory_order_acquire);
+            expected = value_.exchange( 2, std::memory_order_seq_cst);
         }
         while ( 0 != expected) {
             futex_wait( & value_, 2);
-            expected = value_.exchange( 2, std::memory_order_acquire);
+            expected = value_.exchange( 2, std::memory_order_seq_cst);
         }
     }
 
     void unlock() noexcept {
-        if ( 1 != value_.fetch_sub( 1, std::memory_order_acquire) ) {
-            value_.store( 0, std::memory_order_release);
+        if ( 1 != value_.fetch_sub( 1, std::memory_order_seq_cst) ) {
+            value_.store( 0, std::memory_order_seq_cst);
             futex_wake( & value_);
         }
     }

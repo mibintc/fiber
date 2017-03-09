@@ -52,7 +52,7 @@ public:
         std::size_t collisions = 0 ;
         for (;;) {
             std::size_t tests = 0;
-            const std::size_t prev_tests = tests_.load( std::memory_order_relaxed);
+            const std::size_t prev_tests = tests_.load( std::memory_order_seq_cst);
             const std::size_t max_tests = (std::min)( static_cast< std::size_t >( BOOST_FIBERS_SPIN_MAX_TESTS), 2 * prev_tests + 10);
             // avoid using multiple pause instructions for a delay of a specific cycle count
             // the delay of cpu_relax() (pause on Intel) depends on the processor family
@@ -64,7 +64,7 @@ public:
             // sucessive acccess to 'state_' -> cache hit
             // if 'state_' was released by other fiber
             // cached 'state_' is invalidated -> cache miss
-            while ( spinlock_status::locked == state_.load( std::memory_order_relaxed) ) {
+            while ( spinlock_status::locked == state_.load( std::memory_order_seq_cst) ) {
 #if !defined(BOOST_FIBERS_SPIN_SINGLE_CORE)
                 if ( max_tests > tests) {
                     ++tests;
@@ -94,7 +94,7 @@ public:
             }
             // test-and-set shared variable 'status_'
             // everytime 'status_' is signaled over the bus, even if the test failes
-            if ( spinlock_status::locked == state_.exchange( spinlock_status::locked, std::memory_order_acquire) ) {
+            if ( spinlock_status::locked == state_.exchange( spinlock_status::locked, std::memory_order_seq_cst) ) {
                 // spinlock now contended
                 // utilize 'Binary Exponential Backoff' algorithm
                 // linear_congruential_engine is a random number engine based on Linear congruential generator (LCG)
@@ -108,7 +108,7 @@ public:
                     cpu_relax();
                 }
             } else {
-                tests_.store( prev_tests + (tests - prev_tests) / 8, std::memory_order_relaxed);
+                tests_.store( prev_tests + (tests - prev_tests) / 8, std::memory_order_seq_cst);
                 // success, thread has acquired the lock
                 break;
             }
@@ -116,7 +116,7 @@ public:
     }
 
     void unlock() noexcept {
-        state_.store( spinlock_status::unlocked, std::memory_order_release);
+        state_.store( spinlock_status::unlocked, std::memory_order_seq_cst);
     }
 };
 

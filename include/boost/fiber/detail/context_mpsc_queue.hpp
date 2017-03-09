@@ -52,7 +52,7 @@ public:
         dummy_{ reinterpret_cast< context * >( std::addressof( storage_) ) },
         head_{ dummy_ },
         tail_{ dummy_ } {
-        dummy_->remote_nxt_.store( nullptr, std::memory_order_release);
+        dummy_->remote_nxt_.store( nullptr, std::memory_order_seq_cst);
     }
 
     context_mpsc_queue( context_mpsc_queue const&) = delete;
@@ -60,32 +60,32 @@ public:
 
     void push( context * ctx) noexcept {
         BOOST_ASSERT( nullptr != ctx);
-        ctx->remote_nxt_.store( nullptr, std::memory_order_release);
-        context * prev = head_.exchange( ctx, std::memory_order_acq_rel);
-        prev->remote_nxt_.store( ctx, std::memory_order_release);
+        ctx->remote_nxt_.store( nullptr, std::memory_order_seq_cst);
+        context * prev = head_.exchange( ctx, std::memory_order_seq_cst);
+        prev->remote_nxt_.store( ctx, std::memory_order_seq_cst);
     }
 
     context * pop() noexcept {
         context * tail = tail_;
-        context * next = tail->remote_nxt_.load( std::memory_order_acquire);
+        context * next = tail->remote_nxt_.load( std::memory_order_seq_cst);
         if ( dummy_ == tail) {
             if ( nullptr == next) {
                 return nullptr;
             }
             tail_ = next;
             tail = next;
-            next = next->remote_nxt_.load( std::memory_order_acquire);;
+            next = next->remote_nxt_.load( std::memory_order_seq_cst);;
         }
         if ( nullptr != next) {
             tail_ = next;
             return tail;
         }
-        context * head = head_.load( std::memory_order_acquire);
+        context * head = head_.load( std::memory_order_seq_cst);
         if ( tail != head) {
             return nullptr;
         }
         push( dummy_);
-        next = tail->remote_nxt_.load( std::memory_order_acquire);
+        next = tail->remote_nxt_.load( std::memory_order_seq_cst);
         if ( nullptr != next) {
             tail_= next;
             return tail;

@@ -64,52 +64,52 @@ private:
     char                                                    pad_[cacheline_length];
 
     bool is_full_() {
-        std::size_t idx = producer_idx_.load( std::memory_order_relaxed);
-        return 0 > static_cast< std::intptr_t >( slots_[idx & (capacity_ - 1)].cycle.load( std::memory_order_acquire) ) - static_cast< std::intptr_t >( idx);
+        std::size_t idx = producer_idx_.load( std::memory_order_seq_cst);
+        return 0 > static_cast< std::intptr_t >( slots_[idx & (capacity_ - 1)].cycle.load( std::memory_order_seq_cst) ) - static_cast< std::intptr_t >( idx);
     }
 
     bool is_empty_() {
-        std::size_t idx = consumer_idx_.load( std::memory_order_relaxed);
-        return 0 > static_cast< std::intptr_t >( slots_[idx & (capacity_ - 1)].cycle.load( std::memory_order_acquire) ) - static_cast< std::intptr_t >( idx + 1);
+        std::size_t idx = consumer_idx_.load( std::memory_order_seq_cst);
+        return 0 > static_cast< std::intptr_t >( slots_[idx & (capacity_ - 1)].cycle.load( std::memory_order_seq_cst) ) - static_cast< std::intptr_t >( idx + 1);
     }
 
     template< typename ValueType >
     channel_op_status try_push_( ValueType && value) {
         slot * s = nullptr;
-        std::size_t idx = producer_idx_.load( std::memory_order_relaxed);
+        std::size_t idx = producer_idx_.load( std::memory_order_seq_cst);
         for (;;) {
             s = & slots_[idx & (capacity_ - 1)];
-            std::size_t cycle = s->cycle.load( std::memory_order_acquire);
+            std::size_t cycle = s->cycle.load( std::memory_order_seq_cst);
             std::intptr_t diff = static_cast< std::intptr_t >( cycle) - static_cast< std::intptr_t >( idx);
             if ( 0 == diff) {
-                if ( producer_idx_.compare_exchange_weak( idx, idx + 1, std::memory_order_relaxed) ) {
+                if ( producer_idx_.compare_exchange_weak( idx, idx + 1, std::memory_order_seq_cst) ) {
                     break;
                 }
             } else if ( 0 > diff) {
                 return channel_op_status::full;
             } else {
-                idx = producer_idx_.load( std::memory_order_relaxed);
+                idx = producer_idx_.load( std::memory_order_seq_cst);
             }
         }
         ::new ( static_cast< void * >( std::addressof( s->storage) ) ) value_type( std::forward< ValueType >( value) );
-        s->cycle.store( idx + 1, std::memory_order_release);
+        s->cycle.store( idx + 1, std::memory_order_seq_cst);
         return channel_op_status::success;
     }
 
     channel_op_status try_value_pop_( slot *& s, std::size_t & idx) {
-        idx = consumer_idx_.load( std::memory_order_relaxed);
+        idx = consumer_idx_.load( std::memory_order_seq_cst);
         for (;;) {
             s = & slots_[idx & (capacity_ - 1)];
-            std::size_t cycle = s->cycle.load( std::memory_order_acquire);
+            std::size_t cycle = s->cycle.load( std::memory_order_seq_cst);
             std::intptr_t diff = static_cast< std::intptr_t >( cycle) - static_cast< std::intptr_t >( idx + 1);
             if ( 0 == diff) {
-                if ( consumer_idx_.compare_exchange_weak( idx, idx + 1, std::memory_order_relaxed) ) {
+                if ( consumer_idx_.compare_exchange_weak( idx, idx + 1, std::memory_order_seq_cst) ) {
                     break;
                 }
             } else if ( 0 > diff) {
                 return channel_op_status::empty;
             } else {
-                idx = consumer_idx_.load( std::memory_order_relaxed);
+                idx = consumer_idx_.load( std::memory_order_seq_cst);
             }
         }
         // incrementing the slot cycle must be deferred till the value has been consumed
@@ -123,7 +123,7 @@ private:
         channel_op_status status = try_value_pop_( s, idx);
         if ( channel_op_status::success == status) {
             value = std::move( * reinterpret_cast< value_type * >( std::addressof( s->storage) ) );
-            s->cycle.store( idx + capacity_, std::memory_order_release);
+            s->cycle.store( idx + capacity_, std::memory_order_seq_cst);
         }
         return status;
     }
@@ -137,7 +137,7 @@ public:
         }
         slots_ = new slot[capacity_]();
         for ( std::size_t i = 0; i < capacity_; ++i) {
-            slots_[i].cycle.store( i, std::memory_order_relaxed);
+            slots_[i].cycle.store( i, std::memory_order_seq_cst);
         }
     }
 
@@ -148,7 +148,7 @@ public:
             std::size_t idx= 0;
             if ( channel_op_status::success == try_value_pop_( s, idx) ) {
                 reinterpret_cast< value_type * >( std::addressof( s->storage) )->~value_type();
-                s->cycle.store( idx + capacity_, std::memory_order_release);
+                s->cycle.store( idx + capacity_, std::memory_order_seq_cst);
             } else {
                 break;
             }
@@ -160,13 +160,13 @@ public:
     buffered_channel & operator=( buffered_channel const&) = delete;
 
     bool is_closed() const noexcept {
-        return closed_.load( std::memory_order_acquire);
+        return closed_.load( std::memory_order_seq_cst);
     }
 
     void close() noexcept {
         context * active_ctx = context::active();
         detail::spinlock_lock lk{ splk_ };
-        closed_.store( true, std::memory_order_release);
+        closed_.store( true, std::memory_order_seq_cst);
         // notify all waiting producers
         // FIXME: swap queue
         while ( ! waiting_producers_.empty() ) {
@@ -466,7 +466,7 @@ public:
             channel_op_status status = try_value_pop_( s, idx);
             if ( channel_op_status::success == status) {
                 value_type value = std::move( * reinterpret_cast< value_type * >( std::addressof( s->storage) ) );
-                s->cycle.store( idx + capacity_, std::memory_order_release);
+                s->cycle.store( idx + capacity_, std::memory_order_seq_cst);
                 detail::spinlock_lock lk{ splk_ };
                 // notify one waiting producer
                 if ( ! waiting_producers_.empty() ) {
