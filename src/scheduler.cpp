@@ -138,6 +138,11 @@ scheduler::dispatch() noexcept {
         // get next ready context
         context * ctx = algo_->pick_next();
         if ( nullptr != ctx) {
+            BOOST_ASSERT( ! ctx->ready_is_linked() );
+            BOOST_ASSERT( ! ctx->sleep_is_linked() );
+            BOOST_ASSERT( ! ctx->terminated_is_linked() );
+            BOOST_ASSERT( ! ctx->wait_is_linked() );
+            BOOST_ASSERT( ! ctx->is_terminated() );
             // push dispatcher-context to ready-queue
             // so that ready-queue never becomes empty
             ctx->resume( dispatcher_ctx_.get() );
